@@ -727,6 +727,53 @@
     Chart.defaults.color = '#ffffff';
     Chart.defaults.font.family = "'Fira Code', monospace";
 
+    
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxFwRvK7dBo_TaMppQhUTtBkkS57-qDQ9SdEqhD_d2myGzy6n9IvRyoYJ065IGu7jPVsQ/exec';
+
+function getSheetData(sheetName) {
+  return new Promise((resolve, reject) => {
+    const callbackName =
+      'gasCallback_' + Date.now() + '_' +
+      Math.random().toString(36).slice(2);
+
+    const script = document.createElement('script');
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('Waktu tunggu pengambilan data habis.'));
+    }, 20000);
+
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      script.remove();
+    }
+
+    window[callbackName] = function(data) {
+      cleanup();
+
+      if (data && data.error) {
+        reject(new Error(data.error));
+        return;
+      }
+
+      resolve(Array.isArray(data) ? data : []);
+    };
+
+    script.onerror = function() {
+      cleanup();
+      reject(new Error('Gagal menghubungi server Google Apps Script.'));
+    };
+
+    script.src =
+      GAS_API_URL +
+      '?api=data&sheet=' + encodeURIComponent(sheetName) +
+      '&callback=' + encodeURIComponent(callbackName);
+
+    document.head.appendChild(script);
+  });
+}
+
+
     document.addEventListener("DOMContentLoaded", function() {
       initPilkada();
       initParpol();
@@ -751,7 +798,8 @@
 
     // --- 1. PILKADA BUPATI ---
     function initPilkada() {
-      google.script.run.withSuccessHandler(function(data) {
+      getSheetData('suara_pilkada')
+        .then(function(data) {
         rawPilkada = data || [];
         if (rawPilkada.length === 0) return;
         const years = [...new Set(rawPilkada.map(item => item.Tahun))].sort((a,b) => a - b);
